@@ -94,7 +94,7 @@ def setup() -> None:
             # Release the webcam hardware so it can be used by other applications again.
             video_capture.release()
 
-        app.on_shutdown(cleanup)
+        # app.on_shutdown(cleanup)
         # We also need to disconnect clients when the app is stopped with Ctrl+C,
         # because otherwise they will keep requesting images which lead to unfinished subprocesses blocking the shutdown.
         signal.signal(signal.SIGINT, handle_sigint)

@@ -100,7 +100,7 @@ def setup() -> None:
         signal.signal(signal.SIGINT, handle_sigint)
     else:
         print("No video capture device")
-        app.on_shutdown()
+        # app.on_shutdown()
 
 
 # All the setup is only done when the server starts. This avoids the webcam being accessed

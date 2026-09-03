@@ -2,7 +2,7 @@
 <project version="4">
   <component name="ProjectModuleManager">
     <modules>
-      <module fileurl="file://$PROJECT_DIR$/.idea/docker-video-call.iml" filepath="$PROJECT_DIR$/.idea/docker-video-call.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/docker-video-stream.iml" filepath="$PROJECT_DIR$/.idea/docker-video-stream.iml" />
     </modules>
   </component>
 </project>

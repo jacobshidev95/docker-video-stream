@@ -8,6 +8,11 @@ from fastapi import Response
 
 from nicegui import Client, app, core, run, ui
 
+@ui.page("/")
+def home():
+    ui.label("Video Stream")
+    ui.label("The application is running.")
+
 # In case you don't have a webcam, this will provide a black placeholder image.
 black_1px = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAAXNSR0IArs4c6QAAAA1JREFUGFdjYGBg+A8AAQQBAHAgZQsAAAAASUVORK5CYII='
 placeholder = Response(content=base64.b64decode(black_1px.encode('ascii')), media_type='image/png')

@@ -100,6 +100,9 @@ def setup() -> None:
 
 # All the setup is only done when the server starts. This avoids the webcam being accessed
 # by the auto-reload main process (see https://github.com/zauberzeug/nicegui/discussions/2321).
-app.on_startup(setup)
+#app.on_startup(setup)
 
-ui.run()
+if __name__ in {"__main__", "__mp_main__"}:
+    app.on_startup(setup)
+    ui.run(host='0.0.0.0', port=8090, reload=True)
+

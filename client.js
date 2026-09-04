@@ -1,82 +1,166 @@
-var pc = null;
+const startButton = document.getElementById("start");
+const stopButton = document.getElementById("stop");
+const modeSelect = document.getElementById("mode");
+const localVideo = document.getElementById("localVideo");
+const remoteVideo = document.getElementById("remoteVideo");
+const statusText = document.getElementById("status");
 
-function negotiate() {
-    pc.addTransceiver('video', { direction: 'recvonly' });
-    pc.addTransceiver('audio', { direction: 'recvonly' });
-    return pc.createOffer().then((offer) => {
-        return pc.setLocalDescription(offer);
-    }).then(() => {
-        // wait for ICE gathering to complete
-        return new Promise((resolve) => {
-            if (pc.iceGatheringState === 'complete') {
-                resolve();
-            } else {
-                const checkState = () => {
-                    if (pc.iceGatheringState === 'complete') {
-                        pc.removeEventListener('icegatheringstatechange', checkState);
-                        resolve();
-                    }
-                };
-                pc.addEventListener('icegatheringstatechange', checkState);
-            }
-        });
-    }).then(() => {
-        var offer = pc.localDescription;
-        return fetch('/offer', {
-            body: JSON.stringify({
-                sdp: offer.sdp,
-                type: offer.type,
-            }),
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            method: 'POST'
-        });
-    }).then(async (response) => {
-        const body = await response.text();
+let peerConnection = null;
+let localStream = null;
 
-        if (!response.ok) {
-            throw new Error(`/offer returned HTTP ${response.status}: ${body}`);
-        }
-
-        return JSON.parse(body);
-    }).then((answer) => {
-        return pc.setRemoteDescription(answer);
-    }).catch((e) => {
-        alert(e);
-    });
+function setStatus(message) {
+    if (statusText) {
+        statusText.textContent = message;
+    }
 }
 
-function start() {
-    var config = {
-        sdpSemantics: 'unified-plan'
-    };
+function selectedMode() {
+    return modeSelect ? modeSelect.value : "viewer";
+}
 
-    if (document.getElementById('use-stun').checked) {
-        config.iceServers = [{ urls: ['stun:stun.l.google.com:19302'] }];
-    }
+async function negotiate(role) {
+    const offer = await peerConnection.createOffer();
+    await peerConnection.setLocalDescription(offer);
 
-    pc = new RTCPeerConnection(config);
-
-    // connect audio / video
-    pc.addEventListener('track', (evt) => {
-        if (evt.track.kind == 'video') {
-            document.getElementById('video').srcObject = evt.streams[0];
-        } else {
-            document.getElementById('audio').srcObject = evt.streams[0];
+    await new Promise((resolve) => {
+        if (peerConnection.iceGatheringState === "complete") {
+            resolve();
+            return;
         }
+
+        const checkState = () => {
+            if (peerConnection.iceGatheringState === "complete") {
+                peerConnection.removeEventListener(
+                    "icegatheringstatechange",
+                    checkState
+                );
+                resolve();
+            }
+        };
+
+        peerConnection.addEventListener(
+            "icegatheringstatechange",
+            checkState
+        );
     });
 
-    document.getElementById('start').style.display = 'none';
-    negotiate();
-    document.getElementById('stop').style.display = 'inline-block';
+    const response = await fetch("/offer", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+            role,
+            sdp: peerConnection.localDescription.sdp,
+            type: peerConnection.localDescription.type,
+        }),
+    });
+
+    const body = await response.json();
+
+    if (!response.ok) {
+        throw new Error(body.error || `Offer failed with HTTP ${response.status}`);
+    }
+
+    await peerConnection.setRemoteDescription(body);
+}
+
+async function startPublisher() {
+    setStatus("Requesting camera and microphone permission...");
+
+    localStream = await navigator.mediaDevices.getUserMedia({
+        video: true,
+        audio: true,
+    });
+
+    if (localVideo) {
+        localVideo.srcObject = localStream;
+        localVideo.muted = true;
+        await localVideo.play();
+    }
+
+    peerConnection = new RTCPeerConnection();
+
+    for (const track of localStream.getTracks()) {
+        peerConnection.addTrack(track, localStream);
+    }
+
+    peerConnection.onconnectionstatechange = () => {
+        setStatus(`Publisher connection: ${peerConnection.connectionState}`);
+    };
+
+    setStatus("Connecting webcam to the server...");
+    await negotiate("publisher");
+    setStatus("Webcam is live. Other browsers can now view it.");
+}
+
+async function startViewer() {
+    peerConnection = new RTCPeerConnection();
+
+    peerConnection.addTransceiver("video", { direction: "recvonly" });
+    peerConnection.addTransceiver("audio", { direction: "recvonly" });
+
+    peerConnection.ontrack = (event) => {
+        if (remoteVideo && event.streams[0]) {
+            remoteVideo.srcObject = event.streams[0];
+            remoteVideo.play().catch(() => {
+                setStatus("Click the video to allow playback.");
+            });
+        }
+    };
+
+    peerConnection.onconnectionstatechange = () => {
+        setStatus(`Viewer connection: ${peerConnection.connectionState}`);
+    };
+
+    setStatus("Connecting to the live webcam...");
+    await negotiate("viewer");
+    setStatus("Live stream connected.");
+}
+
+async function start() {
+    stop();
+
+    try {
+        if (!navigator.mediaDevices) {
+            throw new Error("Camera access requires HTTPS or localhost.");
+        }
+
+        if (selectedMode() === "publisher") {
+            await startPublisher();
+        } else {
+            await startViewer();
+        }
+    } catch (error) {
+        console.error(error);
+        setStatus(`Error: ${error.message}`);
+        stop();
+    }
 }
 
 function stop() {
-    document.getElementById('stop').style.display = 'none';
+    if (localStream) {
+        for (const track of localStream.getTracks()) {
+            track.stop();
+        }
+        localStream = null;
+    }
 
-    // close peer connection
-    setTimeout(() => {
-        pc.close();
-    }, 500);
+    if (peerConnection) {
+        peerConnection.close();
+        peerConnection = null;
+    }
+
+    if (localVideo) {
+        localVideo.srcObject = null;
+    }
+}
+
+if (startButton) {
+    startButton.addEventListener("click", start);
+}
+
+if (stopButton) {
+    stopButton.addEventListener("click", () => {
+        stop();
+        setStatus("Stopped.");
+    });
 }

@@ -1,5 +1,2 @@
-nicegui
-opencv-python
-fastapi
-numpy
-pyautogui
+aiortc
+aiohappyeyeballs

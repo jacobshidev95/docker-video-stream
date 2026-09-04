@@ -32,8 +32,14 @@ function negotiate() {
             },
             method: 'POST'
         });
-    }).then((response) => {
-        return response.json();
+    }).then(async (response) => {
+        const body = await response.text();
+
+        if (!response.ok) {
+            throw new Error(`/offer returned HTTP ${response.status}: ${body}`);
+        }
+
+        return JSON.parse(body);
     }).then((answer) => {
         return pc.setRemoteDescription(answer);
     }).catch((e) => {
